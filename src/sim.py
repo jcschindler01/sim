@@ -92,8 +92,6 @@ def dup(M,N,LAM,p=inf):
 	d = np.sum(distances)
 	return d
 
-
-
 def dup_opt(M,N,p=inf):
 	"""
 	Calculate upper bound on one way simulation distance by optimizing LAM.
@@ -108,153 +106,71 @@ def dup_opt(M,N,p=inf):
 		N: 		POVM with n outcomes acting in d dimensions.
 				Array. Shape (n,d,d). Each N[j] is a POVM element.
 
-	Returns: d, LAM
+	Returns: d, LAM, M, N
 		d:	Upper bound on one way sim distance.
 		LAM:	Stochastic map from M to N outcomes.
 				Array. Shape (n,m). Sum_i LAM[j,i] M[i] = N[j].
 				Sum_j LAM[j,i] = 1 for all i.
+		M,N: The input values.
 	"""
 	## dimensions
 	m, n = len(M), len(N)
 
-	## objective function with lagrangian constraint enforcing stochastic
+	## objective
 	def objective(x):
 		"""
-		Minimize objective function 
-			dup(LAM) + lag*(1-constraint)
-		where the constraint is stochastic sum condition.
+		Minimize objective function dup(LAM).
 		"""
-		## x to LAM lag
-		LAM = np.reshape(x[:n*m], (n,m))
-		lag = np.reshape(x[n*m:], (m,))
-
-		## constraint
-		constraint = np.dot((1-np.sum(LAM, axis=0))**2, lag)
-		
+		## 
+		LAM = np.reshape(x, (n,m))
 		##
-		return dup(M, N, LAM, p) # + constraint
+		return dup(M, N, LAM, p)
+
+	## constraint
+	def constraint(x):
+		##
+		LAM = np.reshape(x, (n,m))
+		##
+		return np.sum((1. - np.sum(LAM, axis=0))**2)
 
 	## opt guess
-	x = np.zeros((n+1)*m)
-	x[:n*m] = np.reshape(lam0(M,N), (n*m,))
+	l0 = lam0(M,N)
+	l0 = np.zeros(n*m)
+	x0 = np.reshape(l0, (n*m,))
 
 	## opt bounds
-	bounds = ((0,1),)*n*m + ((-np.inf,np.inf),)*m
+	bounds = ((0,1),)*n*m
 	
 	## optimize
-	result = opt.minimize(objective, x, bounds=bounds, method=None)
+	result = opt.minimize(objective, x0, 
+				bounds=bounds, 
+				constraints={'type': 'eq', 'fun': constraint}, 
+				method=None,
+			)
 
 	## results
-	x = result.x
-	LAM = np.reshape(x[:n*m], (n,m))
-	lag = np.reshape(x[n*m:], (m,))
+	LAM = np.reshape(result.x, (n,m))
 	d = result.fun
 
-	##
-	print(d)
-	print(LAM)
-	print(lag)
-	print(result.success)
-	print(result.message)
+	## report
+	if True:
+		print()
+		print("OPTIMIZE")
+		print(result)
+		print()
+
+	## if bad
+	if result.success==False:
+		return None
 
 	## return
-	return d
-
-
-
-## test
-def test2():
-
-	## target POVM
-	N = []
-	N += [np.array([[1,0],[0,0]])]
-	N += [np.array([[0,0],[0,1]])/2]
-	N += [np.array([[0,0],[0,1]])/2]
-	N = np.stack(N)
-
-	## available POVM
-	M = []
-	M += [np.array([[1,-1],[-1,1]])/2]
-	M += [np.array([[1, 1],[ 1,1]])/2]
-	M = np.stack(M)
-
-
-	## upper bound on sim distance
-	d = dup_opt(M,N,p=inf)
-	print(d)
-
-
-
-
-
-## test
-def test1():
-
-	## target POVM
-	N = []
-	N += [np.array([[1,0],[0,0]])]
-	N += [np.array([[0,0],[0,1]])]
-	N = np.stack(N)
-
-	## available POVM
-	M = []
-	M += [np.array([[1,-1],[-1,1]])/2]
-	M += [np.array([[1, 1],[ 1,1]])/2]
-	M = np.stack(M)
-
-	## is POVM?
-	print()
-	print("POVMchecks")
-	POVMcheck(M)
-	POVMcheck(N)
-	print()
-
-	## print POVMs
-	print("available M")
-	print(M)
-	print()
-	print("target N")
-	print(N)
-	print()
-
-	## stochastic processing
-	LAM = lam0(M,N)
-
-	## is stochastic?
-	print("STOCHcheck")
-	STOCHcheck(LAM)
-	print()
-
-	## print STOCH
-	print("stochastic LAM")
-	print(LAM)
-	print()
-
-	## process M to LM
-	LM = ldot(LAM, M)
-
-	## is POVM?
-	print("POVMcheck")
-	POVMcheck(LM)
-	print()
-
-	## print simulated POVM
-	print("simulated LM")
-	print(LM)
-	print()
-
-	## upper bound on sim distance
-	d = dup(M,N,LAM,p=inf)
-
-	## print distance
-	print("upper bound on sim distance dvec(M,N)")
-	print(d)
-	print()
+	return d, LAM, M, N
 
 
 
 
 ##
 if __name__=="__main__":
+	from tests import *
 	test2()
 
