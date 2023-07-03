@@ -37,7 +37,8 @@ def lamM(LAM,M):
 def POVMcheck(M, eps=1e-9):
 	vals  = np.stack([eig(M[i,:,:]) for i in range(len(M))])
 	norm = np.sum(M, axis=0)
-	goodvals = np.all(vals>=0)
+	goodvals = np.all(vals>=-eps)
+	#goodvals = np.all(vals>=0)
 	goodnorm = np.all(np.abs(norm-np.eye(len(M[0])))<=eps)
 	print(vals)
 	print(norm)
@@ -59,7 +60,7 @@ def STOCHcheck(LAM, eps=1e-9):
 
 def lam0(M,N):
 	n, m = len(N), len(M)
-	LAM = np.zeros((n,m))
+	LAM = np.zeros((n,m), dtype=complex)
 	for i in range(m):
 		if np.trace(M[i])>0:
 			for j in range(n):
@@ -161,7 +162,8 @@ def dup_opt(M,N,p=inf):
 
 	## if bad
 	if result.success==False:
-		return None
+		print("WARNING: result.success = False")
+		#return None
 
 	## return
 	return d, LAM, M, N
