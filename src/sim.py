@@ -1,9 +1,10 @@
 
 
 import numpy as np
-import cvxpy as cp
+#import cvxpy as cp
 from numpy.linalg import eigvalsh as eig
 from numpy import inf
+import scipy.optimize as opt
 np.set_printoptions(precision=3, suppress=True, linewidth=999)
 
 
@@ -93,22 +94,112 @@ def dup(M,N,LAM,p=inf):
 
 
 
+def dup_opt(M,N,p=inf):
+	"""
+	Calculate upper bound on one way simulation distance by optimizing LAM.
+
+	d = sum_j 0.5 * ||LAM.M_j - N_j||_p
+
+	Note that lag is a length m vector of lagrange multipliers.
+
+	Params:
+		M: 		POVM with m outcomes acting in d dimensions.
+				Array. Shape (m,d,d). Each M[i] is a POVM element.
+		N: 		POVM with n outcomes acting in d dimensions.
+				Array. Shape (n,d,d). Each N[j] is a POVM element.
+
+	Returns: d, LAM
+		d:	Upper bound on one way sim distance.
+		LAM:	Stochastic map from M to N outcomes.
+				Array. Shape (n,m). Sum_i LAM[j,i] M[i] = N[j].
+				Sum_j LAM[j,i] = 1 for all i.
+	"""
+	## dimensions
+	m, n = len(M), len(N)
+
+	## objective function with lagrangian constraint enforcing stochastic
+	def objective(x):
+		"""
+		Minimize objective function 
+			dup(LAM) + lag*(1-constraint)
+		where the constraint is stochastic sum condition.
+		"""
+		## x to LAM lag
+		LAM = np.reshape(x[:n*m], (n,m))
+		lag = np.reshape(x[n*m:], (m,))
+
+		## constraint
+		constraint = np.dot((1-np.sum(LAM, axis=0))**2, lag)
+		
+		##
+		return dup(M, N, LAM, p) # + constraint
+
+	## opt guess
+	x = np.zeros((n+1)*m)
+	x[:n*m] = np.reshape(lam0(M,N), (n*m,))
+
+	## opt bounds
+	bounds = ((0,1),)*n*m + ((-np.inf,np.inf),)*m
+	
+	## optimize
+	result = opt.minimize(objective, x, bounds=bounds, method=None)
+
+	## results
+	x = result.x
+	LAM = np.reshape(x[:n*m], (n,m))
+	lag = np.reshape(x[n*m:], (m,))
+	d = result.fun
+
+	##
+	print(d)
+	print(LAM)
+	print(lag)
+	print(result.success)
+	print(result.message)
+
+	## return
+	return d
+
+
+
+## test
+def test2():
+
+	## target POVM
+	N = []
+	N += [np.array([[1,0],[0,0]])]
+	N += [np.array([[0,0],[0,1]])/2]
+	N += [np.array([[0,0],[0,1]])/2]
+	N = np.stack(N)
+
+	## available POVM
+	M = []
+	M += [np.array([[1,-1],[-1,1]])/2]
+	M += [np.array([[1, 1],[ 1,1]])/2]
+	M = np.stack(M)
+
+
+	## upper bound on sim distance
+	d = dup_opt(M,N,p=inf)
+	print(d)
+
+
+
+
+
 ## test
 def test1():
 
 	## target POVM
 	N = []
 	N += [np.array([[1,0],[0,0]])]
-	N += [0.25*np.array([[0,0],[0,1]])]
-	N += [0.75*np.array([[0,0],[0,1]])]
+	N += [np.array([[0,0],[0,1]])]
 	N = np.stack(N)
 
 	## available POVM
 	M = []
-	M += [np.array([[1,-1],[-1,1]])/4]
-	M += [np.array([[1, 1],[ 1,1]])/4]
-	M += [np.array([[1,0],[0,0]])/2]
-	M += [np.array([[0,0],[0,1]])/2]
+	M += [np.array([[1,-1],[-1,1]])/2]
+	M += [np.array([[1, 1],[ 1,1]])/2]
 	M = np.stack(M)
 
 	## is POVM?
@@ -162,7 +253,8 @@ def test1():
 
 
 
+
 ##
 if __name__=="__main__":
-	test1()
+	test2()
 
